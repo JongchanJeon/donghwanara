@@ -74,9 +74,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "반짝반짝 동화나라 - AI 동화책" },
       { name: "description", content: "AI가 만들어주는 우리 아이만의 동화책. 한국어·영어·일본어로 들어보세요." },
-      { property: "og:title", content: "반짝반짝 동화나라" },
-      { property: "og:description", content: "AI가 만들어주는 우리 아이만의 동화책" },
+      { property: "og:title", content: "반짝반짝 동화나라 - AI 동화책" },
+      { property: "og:description", content: "AI가 만들어주는 우리 아이만의 동화책. 한국어·영어·일본어로 들어보세요." },
       { property: "og:type", content: "website" },
+      { name: "twitter:title", content: "반짝반짝 동화나라 - AI 동화책" },
+      { name: "twitter:description", content: "AI가 만들어주는 우리 아이만의 동화책. 한국어·영어·일본어로 들어보세요." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e088a896-6e53-48b1-8316-2dc7fa6601ef/id-preview-0416834f--4c04f27c-c971-460f-905a-c633e9c4b35d.lovable.app-1779883229408.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e088a896-6e53-48b1-8316-2dc7fa6601ef/id-preview-0416834f--4c04f27c-c971-460f-905a-c633e9c4b35d.lovable.app-1779883229408.png" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       {
