@@ -72,14 +72,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "반짝반짝 동화나라 - AI 동화책" },
+      { name: "description", content: "AI가 만들어주는 우리 아이만의 동화책. 한국어·영어·일본어로 들어보세요." },
+      { property: "og:title", content: "반짝반짝 동화나라" },
+      { property: "og:description", content: "AI가 만들어주는 우리 아이만의 동화책" },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
