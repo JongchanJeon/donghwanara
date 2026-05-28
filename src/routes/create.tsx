@@ -18,6 +18,7 @@ const EXAMPLES = [
 function CreatePage() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
+  const [heroName, setHeroName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState("");
@@ -36,7 +37,10 @@ function CreatePage() {
       setStep(s);
       await new Promise((r) => setTimeout(r, 700));
     }
-    const story = createStoryFromPrompt(prompt, title);
+    const finalPrompt = heroName.trim()
+      ? `주인공 이름: ${heroName.trim()}. ${prompt}`
+      : prompt;
+    const story = createStoryFromPrompt(finalPrompt, title);
     navigate({ to: "/book/$id", params: { id: story.id } });
   }
 
@@ -70,6 +74,18 @@ function CreatePage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="예: 용감한 강아지의 모험"
               maxLength={50}
+              disabled={loading}
+              className="w-full rounded-2xl border-2 border-input bg-background px-4 py-3 text-base focus:border-primary focus:outline-none transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-lg mb-2 font-display">🦸 주인공 이름 (선택)</label>
+            <input
+              value={heroName}
+              onChange={(e) => setHeroName(e.target.value)}
+              placeholder="예: 토토, 루루, 민준이"
+              maxLength={20}
               disabled={loading}
               className="w-full rounded-2xl border-2 border-input bg-background px-4 py-3 text-base focus:border-primary focus:outline-none transition"
             />
