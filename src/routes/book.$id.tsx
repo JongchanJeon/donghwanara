@@ -13,13 +13,29 @@ const LANGS: { key: Lang; label: string; flag: string; voiceLang: string }[] = [
   { key: "jp", label: "日本語", flag: "🇯🇵", voiceLang: "ja-JP" },
 ];
 
+// 음성 길이를 텍스트 길이 기반으로 추정 (TTS는 실제 길이를 사전에 알 수 없음)
+function estimateDuration(text: string, lang: Lang): number {
+  // 언어별 평균 발화 속도 (글자/초)
+  const cps = lang === "en" ? 12 : lang === "jp" ? 7 : 6;
+  return Math.max(2, text.length / cps);
+}
+
+function formatTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 function BookPage() {
   const { id } = useParams({ from: "/book/$id" });
   const [story, setStory] = useState<Story | undefined>();
   const [page, setPage] = useState(0);
   const [lang, setLang] = useState<Lang>("ko");
   const [playing, setPlaying] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startRef = useRef<number>(0);
 
   useEffect(() => {
     setStory(getStory(id));
@@ -33,11 +49,25 @@ function BookPage() {
     [lang]
   );
 
+  const duration = useMemo(
+    () => (current ? estimateDuration(current.subtitle[lang], lang) : 0),
+    [current, lang]
+  );
+
+  function clearTimer() {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
   function stop() {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
+    clearTimer();
     setPlaying(false);
+    setElapsed(0);
   }
 
   function play() {
@@ -51,11 +81,24 @@ function BookPage() {
     u.lang = voiceLang;
     u.rate = 0.95;
     u.pitch = 1.1;
-    u.onend = () => setPlaying(false);
-    u.onerror = () => setPlaying(false);
+    u.onend = () => {
+      clearTimer();
+      setPlaying(false);
+      setElapsed(0);
+    };
+    u.onerror = () => {
+      clearTimer();
+      setPlaying(false);
+      setElapsed(0);
+    };
     utterRef.current = u;
     window.speechSynthesis.speak(u);
     setPlaying(true);
+    startRef.current = Date.now();
+    setElapsed(0);
+    timerRef.current = setInterval(() => {
+      setElapsed((Date.now() - startRef.current) / 1000);
+    }, 100);
   }
 
   useEffect(() => {
@@ -84,6 +127,8 @@ function BookPage() {
     );
   }
 
+  const progress = duration > 0 ? Math.min(100, (elapsed / duration) * 100) : 0;
+
   return (
     <Layout>
       <div className="flex items-center justify-between mb-4 gap-3">
@@ -91,81 +136,112 @@ function BookPage() {
           to="/"
           className="px-3 py-2 rounded-full bg-white/70 backdrop-blur text-sm hover:bg-white transition shadow"
         >
-          ← 동화책 목록
+          ← 목록
         </Link>
         <h1 className="text-xl sm:text-2xl text-primary text-center line-clamp-1 flex-1">
           📖 {story.title}
         </h1>
-        <div className="text-sm text-muted-foreground tabular-nums">
+        <div className="text-sm text-muted-foreground tabular-nums font-display">
           {page + 1} / {total}
         </div>
       </div>
 
-      <div className="bg-card rounded-3xl shadow-xl border-2 border-white overflow-hidden">
-        <div className="grid md:grid-cols-2">
-          <div className="aspect-[4/3] md:aspect-auto md:min-h-[400px] bg-muted overflow-hidden">
-            <img
-              key={current?.seq}
-              src={current?.photo}
-              alt={`${page + 1}페이지`}
-              className="w-full h-full object-cover animate-pop"
-            />
-          </div>
-          <div className="p-5 sm:p-8 flex flex-col gap-4">
-            <div className="flex gap-2 flex-wrap">
-              {LANGS.map((l) => (
-                <button
-                  key={l.key}
-                  onClick={() => setLang(l.key)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-display transition ${
-                    lang === l.key
-                      ? "bg-primary text-primary-foreground shadow"
-                      : "bg-secondary text-secondary-foreground hover:bg-primary/20"
-                  }`}
-                >
-                  {l.flag} {l.label}
-                </button>
-              ))}
+      {/* 동화책 스프레드 (왼쪽: 그림 / 오른쪽: 글) */}
+      <div className="storybook-spread relative mx-auto">
+        <div className="grid md:grid-cols-2 relative">
+          {/* 왼쪽 페이지 - 그림 */}
+          <div className="storybook-page storybook-page-left relative">
+            <div className="aspect-[4/3] md:aspect-auto md:h-full overflow-hidden rounded-xl border-4 border-white shadow-inner">
+              <img
+                key={current?.seq}
+                src={current?.photo}
+                alt={`${page + 1}페이지`}
+                className="w-full h-full object-cover animate-pop"
+              />
             </div>
+            <div className="absolute bottom-3 left-6 text-xs text-muted-foreground/70 font-display">
+              — {page + 1} —
+            </div>
+          </div>
 
+          {/* 책 가운데 접힌 부분 */}
+          <div className="hidden md:block absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-6 pointer-events-none book-spine" />
+
+          {/* 오른쪽 페이지 - 글 */}
+          <div className="storybook-page storybook-page-right flex flex-col gap-5">
             <p
               key={`${page}-${lang}`}
-              className="text-lg sm:text-xl leading-relaxed text-foreground animate-pop flex-1"
+              className="text-xl sm:text-2xl leading-loose text-foreground animate-pop flex-1 first-letter:text-5xl first-letter:font-display first-letter:text-primary first-letter:mr-1 first-letter:float-left first-letter:leading-none"
               style={{ fontFamily: "var(--font-body)" }}
             >
               {current?.subtitle[lang]}
             </p>
 
-            <div className="flex items-center justify-between gap-3 pt-2 border-t border-border">
-              <button
-                onClick={playing ? stop : play}
-                className="flex items-center gap-2 px-5 py-3 rounded-full bg-accent text-accent-foreground font-display text-base shadow hover:-translate-y-0.5 transition"
-              >
-                {playing ? "⏸ 멈춤" : "▶ 들어보기"}
-              </button>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                  className="w-12 h-12 rounded-full bg-secondary text-secondary-foreground text-2xl shadow disabled:opacity-40 hover:-translate-y-0.5 transition"
-                  aria-label="이전"
-                >
-                  ←
-                </button>
-                <button
-                  onClick={() => setPage((p) => Math.min(total - 1, p + 1))}
-                  disabled={page >= total - 1}
-                  className="w-12 h-12 rounded-full bg-primary text-primary-foreground text-2xl shadow disabled:opacity-40 hover:-translate-y-0.5 transition"
-                  aria-label="다음"
-                >
-                  →
-                </button>
+            {/* 오디오 플레이어 */}
+            <div className="bg-white/80 backdrop-blur rounded-2xl p-4 shadow-md border border-border/50 space-y-3">
+              {/* 언어 선택 */}
+              <div className="flex gap-1.5 flex-wrap">
+                {LANGS.map((l) => (
+                  <button
+                    key={l.key}
+                    onClick={() => setLang(l.key)}
+                    className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-display transition ${
+                      lang === l.key
+                        ? "bg-primary text-primary-foreground shadow"
+                        : "bg-secondary/70 text-secondary-foreground hover:bg-primary/20"
+                    }`}
+                  >
+                    {l.flag} {l.label}
+                  </button>
+                ))}
               </div>
+
+              {/* 재생 + 진행바 */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={playing ? stop : play}
+                  className="shrink-0 w-12 h-12 rounded-full bg-accent text-accent-foreground text-xl shadow hover:-translate-y-0.5 transition flex items-center justify-center"
+                  aria-label={playing ? "멈춤" : "재생"}
+                >
+                  {playing ? "⏸" : "▶"}
+                </button>
+                <div className="flex-1 space-y-1">
+                  <div className="h-2 rounded-full bg-primary/15 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-primary to-accent transition-[width] duration-100"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground tabular-nums font-display">
+                    <span>{formatTime(elapsed)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 페이지 이동 */}
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="px-5 h-12 rounded-full bg-secondary text-secondary-foreground font-display shadow disabled:opacity-40 hover:-translate-y-0.5 transition"
+              >
+                ← 이전장
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(total - 1, p + 1))}
+                disabled={page >= total - 1}
+                className="px-5 h-12 rounded-full bg-primary text-primary-foreground font-display shadow disabled:opacity-40 hover:-translate-y-0.5 transition"
+              >
+                다음장 →
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="flex justify-center gap-2 py-4 bg-muted/50">
+        {/* 페이지 닷 인디케이터 */}
+        <div className="flex justify-center gap-2 py-4">
           {story.pages.map((_, i) => (
             <button
               key={i}
