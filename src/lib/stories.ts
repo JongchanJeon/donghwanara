@@ -11,6 +11,7 @@ export type Lang = "ko" | "en" | "jp";
 export interface StoryPage {
   seq: number;
   photo: string;
+  audio: Partial<Record<Lang, string>>;
   subtitle: Record<Lang, string>;
 }
 
@@ -34,6 +35,12 @@ interface BoardResponse {
   title: string;
   contents?: string | null;
   summary: string;
+  coverPath?: string | null;
+  coverUrl?: string | null;
+  photoPath?: string | null;
+  photoUrl?: string | null;
+  imagePath?: string | null;
+  imageUrl?: string | null;
   status: number;
   createdDate: string;
 }
@@ -42,10 +49,29 @@ interface ContentResponse {
   id: number;
   bookId: number;
   seq: number;
-  photoPath: string;
-  subtitleKo: string;
-  subtitleEn: string;
-  subtitleJp: string;
+  photoPath?: string | null;
+  photoUrl?: string | null;
+  imagePath?: string | null;
+  imageUrl?: string | null;
+  audioPath?: string | null;
+  audioUrl?: string | null;
+  voicePath?: string | null;
+  voiceUrl?: string | null;
+  audioKoPath?: string | null;
+  audioKoUrl?: string | null;
+  audioEnPath?: string | null;
+  audioEnUrl?: string | null;
+  audioJpPath?: string | null;
+  audioJpUrl?: string | null;
+  audioPathKo?: string | null;
+  audioPathEn?: string | null;
+  audioPathJp?: string | null;
+  subtitleKo?: string | null;
+  subtitleEn?: string | null;
+  subtitleJp?: string | null;
+  textKo?: string | null;
+  textEn?: string | null;
+  textJp?: string | null;
 }
 
 interface BoardContentsCreateResponse {
@@ -71,6 +97,7 @@ const SEED_STORIES: Story[] = [
       {
         seq: 1,
         photo: scene1,
+        audio: {},
         subtitle: {
           ko: "옛날 옛적, 작은 토끼 기사 코코가 마법 숲 입구에 서 있었어요.",
           en: "Once upon a time, a tiny bunny knight named Coco stood at the edge of a magical forest.",
@@ -80,6 +107,7 @@ const SEED_STORIES: Story[] = [
       {
         seq: 2,
         photo: scene2,
+        audio: {},
         subtitle: {
           ko: "코코는 반짝이는 반딧불 친구를 만나 함께 길을 찾았어요.",
           en: "Coco met a sparkling firefly friend, and they found the path together.",
@@ -107,38 +135,103 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function resolveImage(photoPath: string | undefined, seq = 1): string {
-  if (!photoPath) return SCENES[(seq - 1) % SCENES.length];
-  if (photoPath.startsWith("http://") || photoPath.startsWith("https://")) {
-    return photoPath;
+function resolveAssetPath(path: string | null | undefined): string | undefined {
+  if (!path) return undefined;
+  const trimmed = path.trim();
+  if (!trimmed) return undefined;
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("data:") ||
+    trimmed.startsWith("blob:")
+  ) {
+    return trimmed;
   }
-  return SCENES[(seq - 1) % SCENES.length];
+
+  const normalized = trimmed.replaceAll("\\", "/");
+  if (normalized.startsWith("/")) return `${API_BASE_URL}${normalized}`;
+  return `${API_BASE_URL}/${normalized}`;
+}
+
+function resolveImage(content: ContentResponse, seq = 1): string {
+  return (
+    resolveAssetPath(content.photoUrl) ??
+    resolveAssetPath(content.photoPath) ??
+    resolveAssetPath(content.imageUrl) ??
+    resolveAssetPath(content.imagePath) ??
+    SCENES[(seq - 1) % SCENES.length]
+  );
+}
+
+function resolveAudio(content: ContentResponse): Partial<Record<Lang, string>> {
+  const common =
+    resolveAssetPath(content.audioUrl) ??
+    resolveAssetPath(content.audioPath) ??
+    resolveAssetPath(content.voiceUrl) ??
+    resolveAssetPath(content.voicePath);
+
+  return {
+    ko:
+      resolveAssetPath(content.audioKoUrl) ??
+      resolveAssetPath(content.audioKoPath) ??
+      resolveAssetPath(content.audioPathKo) ??
+      common,
+    en:
+      resolveAssetPath(content.audioEnUrl) ??
+      resolveAssetPath(content.audioEnPath) ??
+      resolveAssetPath(content.audioPathEn),
+    jp:
+      resolveAssetPath(content.audioJpUrl) ??
+      resolveAssetPath(content.audioJpPath) ??
+      resolveAssetPath(content.audioPathJp),
+  };
 }
 
 function mapBoardToStory(board: BoardResponse, contents: ContentResponse[] = []): Story {
   const ordered = [...contents].sort((a, b) => a.seq - b.seq);
+  const pages = ordered.map((content) => ({
+    seq: content.seq,
+    photo: resolveImage(content, content.seq),
+    audio: resolveAudio(content),
+    subtitle: {
+      ko: content.subtitleKo ?? content.textKo ?? "",
+      en: content.subtitleEn ?? content.textEn ?? "",
+      jp: content.subtitleJp ?? content.textJp ?? "",
+    },
+  }));
+
   return {
     id: String(board.id),
     title: board.title,
     summary: board.summary,
-    cover: COVERS[board.id % COVERS.length],
+    cover:
+      pages[0]?.photo ??
+      resolveAssetPath(board.coverUrl) ??
+      resolveAssetPath(board.coverPath) ??
+      resolveAssetPath(board.photoUrl) ??
+      resolveAssetPath(board.photoPath) ??
+      resolveAssetPath(board.imageUrl) ??
+      resolveAssetPath(board.imagePath) ??
+      COVERS[board.id % COVERS.length],
     createdAt: board.createdDate,
-    pages: ordered.map((content) => ({
-      seq: content.seq,
-      photo: resolveImage(content.photoPath, content.seq),
-      subtitle: {
-        ko: content.subtitleKo,
-        en: content.subtitleEn,
-        jp: content.subtitleJp,
-      },
-    })),
+    pages,
   };
 }
 
 export async function listStories(): Promise<Story[]> {
   try {
     const boards = await fetchJson<BoardResponse[]>("/api/boards");
-    return boards.map((board) => mapBoardToStory(board));
+    return Promise.all(
+      boards.map(async (board) => {
+        try {
+          const contents = await fetchJson<ContentResponse[]>(`/api/boards/${board.id}/contents`);
+          return mapBoardToStory(board, contents);
+        } catch (error) {
+          console.warn(`Failed to load contents for story ${board.id}.`, error);
+          return mapBoardToStory(board);
+        }
+      }),
+    );
   } catch (error) {
     console.warn("Failed to load stories from backend. Showing seed stories.", error);
     return SEED_STORIES;

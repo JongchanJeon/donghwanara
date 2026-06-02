@@ -33,7 +33,9 @@ function BookPage() {
   const [lang, setLang] = useState<Lang>("ko");
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = useRef<number>(0);
 
@@ -71,9 +73,11 @@ function BookPage() {
     [lang],
   );
 
+  const currentAudio = current?.audio[lang];
+
   const duration = useMemo(
-    () => (current ? estimateDuration(current.subtitle[lang], lang) : 0),
-    [current, lang],
+    () => (current ? audioDuration || estimateDuration(current.subtitle[lang], lang) : 0),
+    [audioDuration, current, lang],
   );
 
   function clearTimer() {
@@ -84,6 +88,11 @@ function BookPage() {
   }
 
   function stop() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
+    }
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -94,11 +103,50 @@ function BookPage() {
 
   function play() {
     if (!current) return;
+    stop();
+
+    if (currentAudio) {
+      const audio = new Audio(currentAudio);
+      audioRef.current = audio;
+      audio.onloadedmetadata = () => {
+        if (Number.isFinite(audio.duration)) {
+          setAudioDuration(audio.duration);
+        }
+      };
+      audio.ontimeupdate = () => {
+        setElapsed(audio.currentTime);
+      };
+      audio.onended = () => {
+        audioRef.current = null;
+        setPlaying(false);
+        setElapsed(0);
+      };
+      audio.onerror = () => {
+        audioRef.current = null;
+        setPlaying(false);
+        setElapsed(0);
+        playSynthesizedVoice();
+      };
+      audio.play().catch(() => {
+        audioRef.current = null;
+        setPlaying(false);
+        setElapsed(0);
+        playSynthesizedVoice();
+      });
+      setPlaying(true);
+      setElapsed(0);
+      return;
+    }
+
+    playSynthesizedVoice();
+  }
+
+  function playSynthesizedVoice() {
+    if (!current) return;
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       alert("이 브라우저는 음성 재생을 지원하지 않아요.");
       return;
     }
-    stop();
     const utterance = new SpeechSynthesisUtterance(current.subtitle[lang]);
     utterance.lang = voiceLang;
     utterance.rate = 0.95;
@@ -130,8 +178,9 @@ function BookPage() {
 
   useEffect(() => {
     stop();
+    setAudioDuration(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, lang]);
+  }, [page, lang, currentAudio]);
 
   if (loading) {
     return (
