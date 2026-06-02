@@ -1,7 +1,7 @@
+@import url("https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Jua&display=swap");
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
-@import url("https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Jua&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
@@ -91,7 +91,8 @@
   * {
     border-color: var(--color-border);
   }
-  html, body {
+  html,
+  body {
     font-family: var(--font-body);
   }
   body {
@@ -100,29 +101,54 @@
     color: var(--color-foreground);
     min-height: 100vh;
   }
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: var(--font-display);
     letter-spacing: 0.01em;
   }
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(-2deg); }
-  50% { transform: translateY(-10px) rotate(2deg); }
+  0%,
+  100% {
+    transform: translateY(0px) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
 }
-.animate-float { animation: float 4s ease-in-out infinite; }
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
 
 @keyframes wiggle {
-  0%, 100% { transform: rotate(-3deg); }
-  50% { transform: rotate(3deg); }
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
 }
-.animate-wiggle { animation: wiggle 1.2s ease-in-out infinite; }
+.animate-wiggle {
+  animation: wiggle 1.2s ease-in-out infinite;
+}
 
 @keyframes pop {
-  0% { transform: scale(0.8); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
-.animate-pop { animation: pop 0.4s ease-out both; }
+.animate-pop {
+  animation: pop 0.4s ease-out both;
+}
 
 /* 동화책 스프레드 */
 .storybook-spread {
@@ -137,8 +163,14 @@
 }
 .storybook-page {
   background:
-    radial-gradient(ellipse at top left, rgba(255,255,255,0.92), rgba(255,250,235,0.85)),
-    repeating-linear-gradient(0deg, rgba(180,130,70,0.03) 0px, rgba(180,130,70,0.03) 1px, transparent 1px, transparent 4px);
+    radial-gradient(ellipse at top left, rgba(255, 255, 255, 0.92), rgba(255, 250, 235, 0.85)),
+    repeating-linear-gradient(
+      0deg,
+      rgba(180, 130, 70, 0.03) 0px,
+      rgba(180, 130, 70, 0.03) 1px,
+      transparent 1px,
+      transparent 4px
+    );
   padding: 1.25rem;
   min-height: 420px;
   border-radius: 0.75rem;
@@ -146,20 +178,22 @@
 @media (min-width: 768px) {
   .storybook-page-left {
     padding: 1.5rem 1rem 1.5rem 1.5rem;
-    box-shadow: inset -8px 0 14px -10px rgba(120,80,30,0.35);
+    box-shadow: inset -8px 0 14px -10px rgba(120, 80, 30, 0.35);
     border-radius: 0.75rem 0 0 0.75rem;
   }
   .storybook-page-right {
     padding: 1.5rem 1.5rem 1.5rem 1rem;
-    box-shadow: inset 8px 0 14px -10px rgba(120,80,30,0.35);
+    box-shadow: inset 8px 0 14px -10px rgba(120, 80, 30, 0.35);
     border-radius: 0 0.75rem 0.75rem 0;
   }
 }
 .book-spine {
-  background: linear-gradient(90deg,
-    rgba(120,80,30,0) 0%,
-    rgba(120,80,30,0.18) 45%,
-    rgba(120,80,30,0.3) 50%,
-    rgba(120,80,30,0.18) 55%,
-    rgba(120,80,30,0) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(120, 80, 30, 0) 0%,
+    rgba(120, 80, 30, 0.18) 45%,
+    rgba(120, 80, 30, 0.3) 50%,
+    rgba(120, 80, 30, 0.18) 55%,
+    rgba(120, 80, 30, 0) 100%
+  );
 }
