@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Jua&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap");
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -6,8 +6,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-display: "Jua", "Gaegu", system-ui, sans-serif;
-  --font-body: "Gaegu", system-ui, sans-serif;
+  --font-display: "IBM Plex Sans KR", "Noto Sans KR", system-ui, sans-serif;
+  --font-body: "Noto Sans KR", "IBM Plex Sans KR", system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -94,19 +94,27 @@
   html,
   body {
     font-family: var(--font-body);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   body {
     background: linear-gradient(180deg, #fff8e7 0%, #ffe9f3 50%, #e7f0ff 100%);
     background-attachment: fixed;
     color: var(--color-foreground);
+    line-height: 1.6;
     min-height: 100vh;
+    overflow-wrap: break-word;
+    word-break: keep-all;
   }
   h1,
   h2,
   h3,
   h4 {
     font-family: var(--font-display);
-    letter-spacing: 0.01em;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.25;
   }
 }
 
