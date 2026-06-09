@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { Loader2, Pause, Play } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { getStory, type Lang, type Story } from "@/lib/stories";
@@ -24,6 +25,9 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+type PlaybackSource = "mp3" | "tts";
+type PlaybackState = "idle" | "loading" | "playing";
+
 function BookPage() {
   const { id } = useParams({ from: "/book/$id" });
   const [story, setStory] = useState<Story | undefined>();
@@ -31,13 +35,16 @@ function BookPage() {
   const [error, setError] = useState("");
   const [page, setPage] = useState(0);
   const [lang, setLang] = useState<Lang>("ko");
-  const [playing, setPlaying] = useState(false);
+  const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
+  const [playbackSource, setPlaybackSource] = useState<PlaybackSource | null>(null);
+  const [playbackMessage, setPlaybackMessage] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
   const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = useRef<number>(0);
+  const playbackRunRef = useRef(0);
 
   useEffect(() => {
     let ignore = false;
@@ -74,10 +81,14 @@ function BookPage() {
   );
 
   const currentAudio = current?.audio[lang];
+  const currentSubtitle = current?.subtitle[lang] ?? "";
+  const hasAudioFile = Boolean(currentAudio);
+  const hasTtsText = currentSubtitle.trim().length > 0;
+  const canPlay = hasAudioFile || hasTtsText;
 
   const duration = useMemo(
-    () => (current ? audioDuration || estimateDuration(current.subtitle[lang], lang) : 0),
-    [audioDuration, current, lang],
+    () => (current ? audioDuration || estimateDuration(currentSubtitle, lang) : 0),
+    [audioDuration, current, currentSubtitle, lang],
   );
 
   function clearTimer() {
@@ -87,9 +98,14 @@ function BookPage() {
     }
   }
 
-  function stop() {
+  function stop(resetElapsed = true) {
+    playbackRunRef.current += 1;
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.onloadedmetadata = null;
+      audioRef.current.ontimeupdate = null;
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
       audioRef.current.src = "";
       audioRef.current = null;
     }
@@ -97,44 +113,64 @@ function BookPage() {
       window.speechSynthesis.cancel();
     }
     clearTimer();
-    setPlaying(false);
-    setElapsed(0);
+    utterRef.current = null;
+    setPlaybackState("idle");
+    setPlaybackSource(null);
+    setPlaybackMessage("");
+    if (resetElapsed) setElapsed(0);
   }
 
   function play() {
     if (!current) return;
     stop();
+    setPlaybackMessage("");
 
     if (currentAudio) {
+      const runId = playbackRunRef.current;
       const audio = new Audio(currentAudio);
       audioRef.current = audio;
+      setPlaybackSource("mp3");
+      setPlaybackState("loading");
+      setElapsed(0);
       audio.onloadedmetadata = () => {
+        if (playbackRunRef.current !== runId) return;
         if (Number.isFinite(audio.duration)) {
           setAudioDuration(audio.duration);
         }
       };
       audio.ontimeupdate = () => {
+        if (playbackRunRef.current !== runId) return;
         setElapsed(audio.currentTime);
       };
       audio.onended = () => {
+        if (playbackRunRef.current !== runId) return;
         audioRef.current = null;
-        setPlaying(false);
+        setPlaybackState("idle");
+        setPlaybackSource(null);
         setElapsed(0);
       };
       audio.onerror = () => {
+        if (playbackRunRef.current !== runId) return;
         audioRef.current = null;
-        setPlaying(false);
+        setPlaybackState("idle");
+        setPlaybackSource(null);
         setElapsed(0);
-        playSynthesizedVoice();
+        setPlaybackMessage("MP3 파일을 재생할 수 없어요. 파일 경로나 서버 응답을 확인해 주세요.");
       };
-      audio.play().catch(() => {
-        audioRef.current = null;
-        setPlaying(false);
-        setElapsed(0);
-        playSynthesizedVoice();
-      });
-      setPlaying(true);
-      setElapsed(0);
+      audio
+        .play()
+        .then(() => {
+          if (playbackRunRef.current !== runId) return;
+          setPlaybackState("playing");
+        })
+        .catch(() => {
+          if (playbackRunRef.current !== runId) return;
+          audioRef.current = null;
+          setPlaybackState("idle");
+          setPlaybackSource(null);
+          setElapsed(0);
+          setPlaybackMessage("MP3 파일을 재생할 수 없어요. 브라우저 권한이나 파일 응답을 확인해 주세요.");
+        });
       return;
     }
 
@@ -143,32 +179,55 @@ function BookPage() {
 
   function playSynthesizedVoice() {
     if (!current) return;
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      alert("이 브라우저는 음성 재생을 지원하지 않아요.");
+    if (!hasTtsText) {
+      setPlaybackMessage("재생할 음원이나 자막이 없어요.");
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(current.subtitle[lang]);
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setPlaybackMessage("이 브라우저는 TTS 재생을 지원하지 않아요.");
+      return;
+    }
+    const runId = playbackRunRef.current;
+    const utterance = new SpeechSynthesisUtterance(currentSubtitle);
     utterance.lang = voiceLang;
     utterance.rate = 0.95;
     utterance.pitch = 1.1;
     utterance.onend = () => {
+      if (playbackRunRef.current !== runId) return;
       clearTimer();
-      setPlaying(false);
+      utterRef.current = null;
+      setPlaybackState("idle");
+      setPlaybackSource(null);
       setElapsed(0);
     };
     utterance.onerror = () => {
+      if (playbackRunRef.current !== runId) return;
       clearTimer();
-      setPlaying(false);
+      utterRef.current = null;
+      setPlaybackState("idle");
+      setPlaybackSource(null);
       setElapsed(0);
+      setPlaybackMessage("TTS 재생 중 문제가 생겼어요.");
     };
     utterRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
-    setPlaying(true);
+    setPlaybackSource("tts");
+    setPlaybackState("playing");
+    setPlaybackMessage("MP3 파일이 없어서 브라우저 TTS로 읽고 있어요.");
     startRef.current = Date.now();
     setElapsed(0);
     timerRef.current = setInterval(() => {
+      if (playbackRunRef.current !== runId) return;
       setElapsed((Date.now() - startRef.current) / 1000);
     }, 100);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function togglePlayback() {
+    if (playbackState !== "idle") {
+      stop();
+      return;
+    }
+    play();
   }
 
   useEffect(() => {
@@ -179,6 +238,7 @@ function BookPage() {
   useEffect(() => {
     stop();
     setAudioDuration(0);
+    setPlaybackMessage("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, lang, currentAudio]);
 
@@ -209,6 +269,20 @@ function BookPage() {
   }
 
   const progress = duration > 0 ? Math.min(100, (elapsed / duration) * 100) : 0;
+  const isPlaybackActive = playbackState !== "idle";
+  const playbackStatus =
+    playbackMessage ||
+    (playbackState === "loading"
+      ? "MP3 파일을 불러오는 중이에요."
+      : playbackSource === "mp3"
+        ? "MP3 음원으로 재생 중이에요."
+        : playbackSource === "tts"
+          ? "브라우저 TTS로 읽고 있어요."
+          : hasAudioFile
+            ? "MP3 음원을 재생할 수 있어요."
+            : hasTtsText
+              ? "MP3 파일이 없어서 TTS로 읽을 수 있어요."
+              : "재생할 음원이나 자막이 없어요.");
 
   return (
     <Layout>
@@ -273,13 +347,20 @@ function BookPage() {
 
               <div className="flex items-center gap-3">
                 <button
-                  onClick={playing ? stop : play}
-                  className="shrink-0 w-12 h-12 rounded-full bg-accent text-accent-foreground text-xl shadow hover:-translate-y-0.5 transition flex items-center justify-center"
-                  aria-label={playing ? "멈춤" : "재생"}
+                  onClick={togglePlayback}
+                  disabled={!canPlay}
+                  className="shrink-0 w-12 h-12 rounded-full bg-accent text-accent-foreground shadow hover:-translate-y-0.5 transition flex items-center justify-center disabled:opacity-40 disabled:hover:translate-y-0"
+                  aria-label={isPlaybackActive ? "재생 중지" : "재생"}
                 >
-                  {playing ? "Ⅱ" : "▶"}
+                  {playbackState === "loading" ? (
+                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                  ) : isPlaybackActive ? (
+                    <Pause className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <Play className="h-5 w-5 translate-x-0.5" aria-hidden="true" />
+                  )}
                 </button>
-                <div className="flex-1 space-y-1">
+                <div className="flex-1 space-y-1.5 min-w-0">
                   <div className="h-2 rounded-full bg-primary/15 overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-primary to-accent transition-[width] duration-100"
@@ -289,6 +370,12 @@ function BookPage() {
                   <div className="flex justify-between text-xs text-muted-foreground tabular-nums font-display">
                     <span>{formatTime(elapsed)}</span>
                     <span>{formatTime(duration)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span className="truncate">{playbackStatus}</span>
+                    <span className="shrink-0 rounded-full bg-secondary/70 px-2 py-0.5 font-display text-[11px] text-secondary-foreground">
+                      {hasAudioFile ? "MP3" : "TTS"}
+                    </span>
                   </div>
                 </div>
               </div>
