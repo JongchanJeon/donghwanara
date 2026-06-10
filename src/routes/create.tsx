@@ -98,6 +98,21 @@ function CreatePage() {
           onSubmit={onSubmit}
           className="bg-card rounded-3xl shadow-lg p-6 sm:p-8 border-2 border-white space-y-5"
         >
+          <div className="rounded-2xl bg-secondary/40 border-2 border-secondary/60 p-4">
+            <label className="block text-lg mb-1 font-display">🔑 API 키</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              동화를 만들려면 API 키가 필요해요. 입력한 키는 이 브라우저에만 저장돼요.
+            </p>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKeyState(e.target.value)}
+              placeholder="sk-..."
+              disabled={loading}
+              className="w-full rounded-2xl border-2 border-input bg-background px-4 py-3 text-base focus:border-primary focus:outline-none transition"
+            />
+          </div>
+
           <div>
             <label className="block text-lg mb-2 font-display">동화 제목 선택</label>
             <input
