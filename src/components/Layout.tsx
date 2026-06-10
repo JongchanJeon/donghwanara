@@ -1,7 +1,16 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { signOut, useAuth } from "@/lib/auth";
 import mascot from "@/assets/mascot.png";
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const user = useAuth();
+  const navigate = useNavigate();
+
+  function handleSignOut() {
+    signOut();
+    navigate({ to: "/" });
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-30 backdrop-blur-md bg-white/60 border-b-2 border-white/80 shadow-sm">
@@ -21,20 +30,45 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </Link>
-          <nav className="flex items-center gap-2 sm:gap-3">
+          <nav className="flex items-center gap-1.5 sm:gap-2">
             <Link
-              to="/"
+              to="/library"
               className="px-3 py-2 rounded-full text-sm sm:text-base font-display text-foreground hover:bg-white/80 transition"
               activeProps={{ className: "bg-white shadow" }}
             >
               동화책
             </Link>
+            {user && (
+              <Link
+                to="/mypage"
+                className="px-3 py-2 rounded-full text-sm sm:text-base font-display text-foreground hover:bg-white/80 transition"
+                activeProps={{ className: "bg-white shadow" }}
+              >
+                마이페이지
+              </Link>
+            )}
             <Link
               to="/create"
               className="px-3 py-2 sm:px-4 rounded-full text-sm sm:text-base font-display bg-primary text-primary-foreground shadow-md hover:shadow-lg hover:-translate-y-0.5 transition"
             >
               만들기
             </Link>
+            {user ? (
+              <button
+                onClick={handleSignOut}
+                className="px-3 py-2 rounded-full text-sm sm:text-base font-display text-foreground hover:bg-white/80 transition"
+              >
+                로그아웃
+              </button>
+            ) : (
+              <Link
+                to="/auth"
+                className="px-3 py-2 rounded-full text-sm sm:text-base font-display text-foreground hover:bg-white/80 transition"
+                activeProps={{ className: "bg-white shadow" }}
+              >
+                로그인
+              </Link>
+            )}
           </nav>
         </div>
       </header>

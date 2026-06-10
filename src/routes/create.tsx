@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { createStoryFromPrompt } from "@/lib/stories";
+import { addMyStoryId, getApiKey, setApiKey, useAuth } from "@/lib/auth";
 import mascot from "@/assets/mascot.png";
 
 export const Route = createFileRoute("/create")({
@@ -24,9 +25,11 @@ const LOADING_STEPS = [
 
 function CreatePage() {
   const navigate = useNavigate();
+  const user = useAuth();
   const [title, setTitle] = useState("");
   const [heroName, setHeroName] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [apiKey, setApiKeyState] = useState(() => getApiKey());
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
@@ -34,7 +37,12 @@ function CreatePage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!prompt.trim() || loading) return;
+    if (!apiKey.trim()) {
+      setError("동화를 만들려면 API 키를 입력해 주세요.");
+      return;
+    }
 
+    setApiKey(apiKey);
     setLoading(true);
     setError("");
 
@@ -53,12 +61,14 @@ function CreatePage() {
         title: title.trim() || undefined,
         heroName: heroName.trim() || undefined,
         prompt: prompt.trim(),
+        apiKey: apiKey.trim(),
       });
+      if (user) addMyStoryId(user.email, story.id);
       navigate({ to: "/book/$id", params: { id: story.id } });
     } catch (err) {
       console.error(err);
       setError(
-        "동화 생성에 실패했어요. 백엔드가 실행 중인지, OPENAI_API_KEY가 설정되어 있는지 확인해 주세요.",
+        "동화 생성에 실패했어요. API 키가 올바른지, 백엔드가 실행 중인지 확인해 주세요.",
       );
     } finally {
       window.clearInterval(timer);
@@ -88,6 +98,21 @@ function CreatePage() {
           onSubmit={onSubmit}
           className="bg-card rounded-3xl shadow-lg p-6 sm:p-8 border-2 border-white space-y-5"
         >
+          <div className="rounded-2xl bg-secondary/40 border-2 border-secondary/60 p-4">
+            <label className="block text-lg mb-1 font-display">🔑 API 키</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              동화를 만들려면 API 키가 필요해요. 입력한 키는 이 브라우저에만 저장돼요.
+            </p>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKeyState(e.target.value)}
+              placeholder="sk-..."
+              disabled={loading}
+              className="w-full rounded-2xl border-2 border-input bg-background px-4 py-3 text-base focus:border-primary focus:outline-none transition"
+            />
+          </div>
+
           <div>
             <label className="block text-lg mb-2 font-display">동화 제목 선택</label>
             <input
@@ -154,7 +179,7 @@ function CreatePage() {
 
           <button
             type="submit"
-            disabled={loading || !prompt.trim()}
+            disabled={loading || !prompt.trim() || !apiKey.trim()}
             className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-display text-xl shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? step || "만드는 중..." : "동화책 만들기"}
