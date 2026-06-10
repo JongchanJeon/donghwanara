@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { createStoryFromPrompt } from "@/lib/stories";
+import { addMyStoryId, getApiKey, setApiKey, useAuth } from "@/lib/auth";
 import mascot from "@/assets/mascot.png";
 
 export const Route = createFileRoute("/create")({
@@ -24,9 +25,11 @@ const LOADING_STEPS = [
 
 function CreatePage() {
   const navigate = useNavigate();
+  const user = useAuth();
   const [title, setTitle] = useState("");
   const [heroName, setHeroName] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [apiKey, setApiKeyState] = useState(() => getApiKey());
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
@@ -34,7 +37,12 @@ function CreatePage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!prompt.trim() || loading) return;
+    if (!apiKey.trim()) {
+      setError("동화를 만들려면 API 키를 입력해 주세요.");
+      return;
+    }
 
+    setApiKey(apiKey);
     setLoading(true);
     setError("");
 
@@ -53,12 +61,14 @@ function CreatePage() {
         title: title.trim() || undefined,
         heroName: heroName.trim() || undefined,
         prompt: prompt.trim(),
+        apiKey: apiKey.trim(),
       });
+      if (user) addMyStoryId(user.email, story.id);
       navigate({ to: "/book/$id", params: { id: story.id } });
     } catch (err) {
       console.error(err);
       setError(
-        "동화 생성에 실패했어요. 백엔드가 실행 중인지, OPENAI_API_KEY가 설정되어 있는지 확인해 주세요.",
+        "동화 생성에 실패했어요. API 키가 올바른지, 백엔드가 실행 중인지 확인해 주세요.",
       );
     } finally {
       window.clearInterval(timer);
