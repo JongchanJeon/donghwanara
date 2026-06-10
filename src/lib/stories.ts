@@ -28,6 +28,7 @@ export interface StoryGenerateInput {
   title?: string;
   heroName?: string;
   prompt: string;
+  apiKey?: string;
 }
 
 interface BoardResponse {
