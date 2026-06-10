@@ -179,7 +179,7 @@ function CreatePage() {
 
           <button
             type="submit"
-            disabled={loading || !prompt.trim()}
+            disabled={loading || !prompt.trim() || !apiKey.trim()}
             className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-display text-xl shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? step || "만드는 중..." : "동화책 만들기"}
