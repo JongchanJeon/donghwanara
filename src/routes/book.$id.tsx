@@ -268,6 +268,23 @@ function BookPage() {
     );
   }
 
+  if (!current) {
+    return (
+      <Layout>
+        <div className="text-center py-20">
+          <p className="text-xl">페이지를 찾을 수 없어요.</p>
+          <button
+            type="button"
+            onClick={() => setPage(0)}
+            className="inline-block mt-4 px-5 py-2 rounded-full bg-primary text-primary-foreground"
+          >
+            첫 페이지로 이동
+          </button>
+        </div>
+      </Layout>
+    );
+  }
+
   const progress = duration > 0 ? Math.min(100, (elapsed / duration) * 100) : 0;
   const isPlaybackActive = playbackState !== "idle";
   const playbackStatus =
