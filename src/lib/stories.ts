@@ -260,3 +260,11 @@ export async function createStoryFromPrompt(input: StoryGenerateInput): Promise<
 
   return mapBoardToStory(generated.board, generated.contents);
 }
+
+export async function deleteStory(id: string): Promise<void> {
+  if (id.startsWith("seed-")) return;
+  await fetchJson<unknown>(`/api/boards/${id}`, { method: "DELETE" }).catch((error) => {
+    // 백엔드가 없거나 이미 삭제된 경우에도 로컬 목록에서는 제거할 수 있도록 무시
+    console.warn(`Failed to delete story ${id} on backend.`, error);
+  });
+}
