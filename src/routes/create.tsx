@@ -1,8 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { createStoryFromPrompt } from "@/lib/stories";
-import { addMyStoryId, getApiKey, setApiKey, useAuth } from "@/lib/auth";
+import { refreshCurrentUser, useAuth } from "@/lib/auth";
 import mascot from "@/assets/mascot.png";
 
 export const Route = createFileRoute("/create")({
@@ -10,16 +10,16 @@ export const Route = createFileRoute("/create")({
 });
 
 const EXAMPLES = [
-  "용감한 강아지가 바다 속 보물을 찾으러 가는 이야기",
+  "용감한 강아지가 바다 보물을 찾아 떠나는 이야기",
   "구름 위에 사는 작은 고양이가 별을 돌보는 이야기",
-  "수줍은 공룡이 친구를 처음 사귀는 이야기",
-  "마법 빗자루를 타는 쌍둥이 자매의 모험 이야기",
+  "수줍은 공룡이 새 친구를 처음 사귀는 이야기",
+  "마법 빗자루를 잃어버린 꼬마 마녀의 모험 이야기",
 ];
 
 const LOADING_STEPS = [
   "아이디어를 읽고 있어요...",
   "주인공에게 마법을 걸고 있어요...",
-  "네 장면의 이야기를 쓰고 있어요...",
+  "그림책 장면을 엮고 있어요...",
   "동화책으로 저장하고 있어요...",
 ];
 
@@ -29,20 +29,24 @@ function CreatePage() {
   const [title, setTitle] = useState("");
   const [heroName, setHeroName] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [apiKey, setApiKeyState] = useState(() => getApiKey());
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
 
+  const storyPoints = user?.storyPoints ?? 0;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!prompt.trim() || loading) return;
-    if (!apiKey.trim()) {
-      setError("동화를 만들려면 API 키를 입력해 주세요.");
+    if (!user) {
+      setError("로그인 후 동화를 만들 수 있어요.");
+      return;
+    }
+    if (storyPoints <= 0) {
+      setError("동화 포인트가 없습니다. 관리자에게 문의해 주세요.");
       return;
     }
 
-    setApiKey(apiKey);
     setLoading(true);
     setError("");
 
@@ -61,15 +65,13 @@ function CreatePage() {
         title: title.trim() || undefined,
         heroName: heroName.trim() || undefined,
         prompt: prompt.trim(),
-        apiKey: apiKey.trim(),
       });
-      if (user) addMyStoryId(user.email, story.id);
+      await refreshCurrentUser().catch(() => undefined);
       navigate({ to: "/book/$id", params: { id: story.id } });
     } catch (err) {
       console.error(err);
-      setError(
-        "동화 생성에 실패했어요. API 키가 올바른지, 백엔드가 실행 중인지 확인해 주세요.",
-      );
+      const message = err instanceof Error ? err.message : "";
+      setError(message || "동화 생성에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       window.clearInterval(timer);
       setLoading(false);
@@ -90,31 +92,44 @@ function CreatePage() {
           />
           <h1 className="text-3xl sm:text-4xl text-primary mt-2">AI 동화 만들기</h1>
           <p className="text-foreground/70 mt-1">
-            어떤 이야기가 읽고 싶은지 적어 주세요. GPT가 네 장면의 동화로 만들어 줍니다.
+            동화 포인트 1개로 새 동화책을 만들 수 있어요.
           </p>
         </div>
+
+        {!user && (
+          <div className="mb-5 rounded-2xl border-2 border-secondary/60 bg-secondary/30 p-4 text-center">
+            <p className="text-sm text-muted-foreground mb-3">로그인 후 동화 포인트를 사용할 수 있어요.</p>
+            <Link
+              to="/auth"
+              className="inline-flex px-5 py-2 rounded-full bg-primary text-primary-foreground font-display shadow"
+            >
+              로그인 / 회원가입
+            </Link>
+          </div>
+        )}
+
+        {user && (
+          <div className="mb-5 rounded-2xl border-2 border-secondary/60 bg-secondary/30 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm text-muted-foreground">보유 동화 포인트</div>
+                <div className="text-2xl font-display text-primary">{storyPoints}개</div>
+              </div>
+              <p className="text-xs text-muted-foreground text-right">
+                포인트는 관리자를 통해 지급돼요.
+                <br />
+                생성할 때마다 1개씩 차감됩니다.
+              </p>
+            </div>
+          </div>
+        )}
 
         <form
           onSubmit={onSubmit}
           className="bg-card rounded-3xl shadow-lg p-6 sm:p-8 border-2 border-white space-y-5"
         >
-          <div className="rounded-2xl bg-secondary/40 border-2 border-secondary/60 p-4">
-            <label className="block text-lg mb-1 font-display">🔑 API 키</label>
-            <p className="text-xs text-muted-foreground mb-2">
-              동화를 만들려면 API 키가 필요해요. 입력한 키는 이 브라우저에만 저장돼요.
-            </p>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKeyState(e.target.value)}
-              placeholder="sk-..."
-              disabled={loading}
-              className="w-full rounded-2xl border-2 border-input bg-background px-4 py-3 text-base focus:border-primary focus:outline-none transition"
-            />
-          </div>
-
           <div>
-            <label className="block text-lg mb-2 font-display">동화 제목 선택</label>
+            <label className="block text-lg mb-2 font-display">동화 제목</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -126,11 +141,11 @@ function CreatePage() {
           </div>
 
           <div>
-            <label className="block text-lg mb-2 font-display">주인공 이름 선택</label>
+            <label className="block text-lg mb-2 font-display">주인공 이름</label>
             <input
               value={heroName}
               onChange={(e) => setHeroName(e.target.value)}
-              placeholder="예: 토토, 루루, 민지"
+              placeholder="예: 토토, 루미, 민지"
               maxLength={20}
               disabled={loading}
               className="w-full rounded-2xl border-2 border-input bg-background px-4 py-3 text-base focus:border-primary focus:outline-none transition"
@@ -179,7 +194,7 @@ function CreatePage() {
 
           <button
             type="submit"
-            disabled={loading || !prompt.trim() || !apiKey.trim()}
+            disabled={loading || !prompt.trim() || !user || storyPoints <= 0}
             className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-display text-xl shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? step || "만드는 중..." : "동화책 만들기"}

@@ -1,18 +1,26 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 
 export interface User {
+  id: number;
   email: string;
   name: string;
+  storyPoints: number;
 }
 
-interface StoredUser extends User {
-  password: string;
+interface AuthSession {
+  token: string;
+  user: User;
 }
 
-const USERS_KEY = "dn_users";
+interface AuthResponse {
+  token: string;
+  user: User;
+}
+
 const SESSION_KEY = "dn_session";
-const MY_STORIES_KEY = "dn_my_stories";
-const API_KEY_KEY = "dn_api_key";
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ??
+  "http://localhost:8080";
 
 const listeners = new Set<() => void>();
 
@@ -39,96 +47,121 @@ function write(key: string, value: unknown) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
-function readUsers(): StoredUser[] {
-  return read<StoredUser[]>(USERS_KEY, []);
+async function fetchAuth(path: string, init?: RequestInit): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+    ...init,
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    throw new Error(message || "Authentication failed");
+  }
+
+  return response.json() as Promise<AuthResponse>;
 }
 
-export function signUp(email: string, password: string, name: string): User {
-  const normalized = email.trim().toLowerCase();
-  const users = readUsers();
-  if (users.some((u) => u.email === normalized)) {
-    throw new Error("이미 가입된 이메일이에요.");
+async function fetchUser(path: string, init?: RequestInit): Promise<User> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...init?.headers,
+    },
+    ...init,
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    throw new Error(message || "Authentication failed");
   }
-  const user: StoredUser = { email: normalized, name: name.trim() || normalized, password };
-  users.push(user);
-  write(USERS_KEY, users);
-  const session: User = { email: user.email, name: user.name };
+
+  return response.json() as Promise<User>;
+}
+
+function saveSession(session: AuthSession) {
   write(SESSION_KEY, session);
   emit();
-  return session;
 }
 
-export function signIn(email: string, password: string): User {
-  const normalized = email.trim().toLowerCase();
-  const user = readUsers().find((u) => u.email === normalized);
-  if (!user || user.password !== password) {
-    throw new Error("이메일 또는 비밀번호가 올바르지 않아요.");
+export async function signUp(email: string, password: string, name: string): Promise<User> {
+  const session = await fetchAuth("/api/auth/signup", {
+    method: "POST",
+    body: JSON.stringify({ email, password, name }),
+  });
+  saveSession(session);
+  return session.user;
+}
+
+export async function signIn(email: string, password: string): Promise<User> {
+  const session = await fetchAuth("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  saveSession(session);
+  return session.user;
+}
+
+export async function signOut() {
+  const token = getAuthToken();
+  if (token) {
+    await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => undefined);
   }
-  const session: User = { email: user.email, name: user.name };
-  write(SESSION_KEY, session);
-  emit();
-  return session;
-}
-
-export function signOut() {
   if (hasWindow()) window.localStorage.removeItem(SESSION_KEY);
   emit();
 }
 
 export function getCurrentUser(): User | null {
-  return read<User | null>(SESSION_KEY, null);
+  return read<AuthSession | null>(SESSION_KEY, null)?.user ?? null;
+}
+
+export async function refreshCurrentUser(): Promise<User | null> {
+  const session = read<AuthSession | null>(SESSION_KEY, null);
+  if (!session?.token) return null;
+
+  const user = await fetchUser("/api/auth/me");
+  saveSession({ token: session.token, user });
+  return user;
+}
+
+export function getAuthToken(): string | null {
+  return read<AuthSession | null>(SESSION_KEY, null)?.token ?? null;
+}
+
+export function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 function subscribe(callback: () => void) {
   listeners.add(callback);
-  if (hasWindow()) window.addEventListener("storage", callback);
+  if (hasWindow()) {
+    window.addEventListener("storage", callback);
+  }
   return () => {
     listeners.delete(callback);
-    if (hasWindow()) window.removeEventListener("storage", callback);
+    if (hasWindow()) {
+      window.removeEventListener("storage", callback);
+    }
   };
 }
 
 export function useAuth(): User | null {
-  return useSyncExternalStore(
-    subscribe,
-    () => getCurrentUser(),
-    () => null,
-  );
-}
+  const [user, setUser] = useState<User | null>(() => getCurrentUser());
 
-/* 내가 만든 동화 추적 (이메일별 동화 id 목록) */
+  useEffect(() => {
+    refreshCurrentUser().catch(() => undefined);
 
-type MyStoriesMap = Record<string, string[]>;
+    return subscribe(() => {
+      setUser(getCurrentUser());
+    });
+  }, []);
 
-export function getMyStoryIds(email: string): string[] {
-  const map = read<MyStoriesMap>(MY_STORIES_KEY, {});
-  return map[email] ?? [];
-}
-
-export function addMyStoryId(email: string, id: string) {
-  const map = read<MyStoriesMap>(MY_STORIES_KEY, {});
-  const list = map[email] ?? [];
-  if (!list.includes(id)) {
-    map[email] = [id, ...list];
-    write(MY_STORIES_KEY, map);
-    emit();
-  }
-}
-
-export function removeMyStoryId(email: string, id: string) {
-  const map = read<MyStoriesMap>(MY_STORIES_KEY, {});
-  map[email] = (map[email] ?? []).filter((storyId) => storyId !== id);
-  write(MY_STORIES_KEY, map);
-  emit();
-}
-
-/* 동화 생성용 API 키 */
-
-export function getApiKey(): string {
-  return read<string>(API_KEY_KEY, "");
-}
-
-export function setApiKey(value: string) {
-  write(API_KEY_KEY, value.trim());
-  emit();
+  return user;
 }

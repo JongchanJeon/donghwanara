@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
-import { getMyStoryIds, removeMyStoryId, useAuth } from "@/lib/auth";
-import { deleteStory, getStory, type Story } from "@/lib/stories";
+import { useAuth } from "@/lib/auth";
+import { deleteStory, listMyStories, type Story } from "@/lib/stories";
 import mascot from "@/assets/mascot.png";
 
 export const Route = createFileRoute("/mypage")({
@@ -18,25 +18,21 @@ function MyPage() {
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (user === null) return;
     let ignore = false;
-    const ids = getMyStoryIds(user.email);
+    setLoading(true);
+    setError("");
 
-    Promise.all(
-      ids.map((id) =>
-        getStory(id).catch(() => {
-          // 불러올 수 없는 동화는 목록에서 정리
-          removeMyStoryId(user.email, id);
-          return undefined;
-        }),
-      ),
-    )
-      .then((results) => {
-        if (!ignore) {
-          setStories(results.filter((s): s is Story => Boolean(s)));
-        }
+    listMyStories()
+      .then((result) => {
+        if (!ignore) setStories(result);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!ignore) setError("내 동화책을 불러오지 못했어요. 다시 로그인해 주세요.");
       })
       .finally(() => {
         if (!ignore) setLoading(false);
@@ -51,10 +47,13 @@ function MyPage() {
     if (!user) return;
     if (!window.confirm("이 동화책을 삭제할까요?")) return;
     setDeleting(id);
+    setError("");
     try {
       await deleteStory(id);
-      removeMyStoryId(user.email, id);
-      setStories((prev) => prev.filter((s) => s.id !== id));
+      setStories((prev) => prev.filter((story) => story.id !== id));
+    } catch (err) {
+      console.error(err);
+      setError("동화책을 삭제하지 못했어요.");
     } finally {
       setDeleting(null);
     }
@@ -83,16 +82,21 @@ function MyPage() {
       <div className="flex items-center gap-3 mb-6">
         <img src={mascot} alt="" width={56} height={56} className="w-14 h-14" />
         <div>
-          <h1 className="text-2xl sm:text-3xl text-primary">{user.name}님의 책장</h1>
+          <h1 className="text-2xl sm:text-3xl text-primary">{user.name}의 책장</h1>
           <p className="text-sm text-muted-foreground">내가 만든 동화책 {stories.length}권</p>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-5 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-center text-muted-foreground py-16">불러오는 중...</p>
       ) : stories.length === 0 ? (
         <div className="text-center py-16 bg-white/60 rounded-3xl border-2 border-white">
-          <div className="text-5xl mb-3">📖</div>
           <p className="text-lg text-foreground">아직 만든 동화책이 없어요.</p>
           <Link
             to="/create"
