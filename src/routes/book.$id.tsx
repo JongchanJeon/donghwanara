@@ -258,7 +258,7 @@ function BookPage() {
         <div className="text-center py-20">
           <p className="text-xl">{error || "동화책을 찾을 수 없어요."}</p>
           <Link
-            to="/"
+            to="/library"
             className="inline-block mt-4 px-5 py-2 rounded-full bg-primary text-primary-foreground"
           >
             목록으로 돌아가기
@@ -288,7 +288,7 @@ function BookPage() {
     <Layout>
       <div className="flex items-center justify-between mb-4 gap-3">
         <Link
-          to="/"
+          to="/library"
           className="px-3 py-2 rounded-full bg-white/70 backdrop-blur text-sm hover:bg-white transition shadow"
         >
           목록
