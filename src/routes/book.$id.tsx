@@ -252,7 +252,7 @@ function BookPage() {
     );
   }
 
-  if (!story || total === 0) {
+  if (!story || total === 0 || !current) {
     return (
       <Layout>
         <div className="text-center py-20">
